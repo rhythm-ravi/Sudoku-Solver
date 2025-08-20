@@ -2,9 +2,11 @@ package com.dooku;
 
 import java.io.IOException;
 
+import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.ReadOnlyDoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.value.ObservableValue;
+import javafx.event.Event;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
@@ -19,6 +21,7 @@ import javafx.scene.paint.Paint;
 import javafx.scene.shape.Rectangle;
 
 import javafx.stage.*;
+import javafx.util.Duration;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -27,9 +30,20 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 
 import javafx.scene.text.Font;
+
+
+import javafx.animation.*;
+
 public class MainController {       // Loose coupling between UI(client) and logic(server)
 
     private static Stage stage = new Stage();
+    static {
+        stage.initModality(Modality.APPLICATION_MODAL);
+    }
+    private static double prevHeight;  private static double prevWidth;   // keep track of sizing of main_scene between instances
+    static {
+        prevHeight = App.screenHeight/2;    prevWidth = App.screenWidth/2 - 70;     // Initially the dimensions I thought should look decent
+    }
     
     @FXML
     private MainScene root = null;
@@ -37,24 +51,14 @@ public class MainController {       // Loose coupling between UI(client) and log
     private GridPane board = null;
     @FXML
     private HBox options = null;
-    private final int dim = SettingsController.getSetting("dimensions", Integer.class);
-    // if a new instance is created for each time a scene graph from main.fxml is constructed, then this final modifier should be harmless
+    
+    private final int dim = SettingsController.getSetting("dimensions", Integer.class);     // if a new instance is created for each time a scene graph from main.fxml is constructed, then this final modifier should be harmless
     private final String color = SettingsController.getSetting("bgcolor", String.class);
     private Board lBoard = new Board(dim);   //// incorrrectded
 
-    private static Alert closingAlert = new Alert(AlertType.CONFIRMATION);
-    static {
-        closingAlert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
-        closingAlert.setContentText("Go back to Menu?");
+    // Alerts
+    private Alert closingAlert = new Alert(AlertType.CONFIRMATION);
         
-        stage.setOnHidden(e -> closingAlert.show());        
-        // For some reason alert.showAndWait() created all sorts of problems (MainScene being visible but unresponsive if we decided to stay after the alert pops up,  stage simply not being visible if we pressed NO and never showing until the entire application was restarted and so on...)
-        closingAlert.setOnHidden(e -> {     // My best guess is that since in showAndWait it waits for the stage to be closed before returning to caller,  when alert was hidden, control could be transferred to caller, or to alert's hidden handler,  and this might have led to some kind of obfuscation  (Maybe control went from stage onHidden event handler to the alert stage being shown and wait,  to the alert's on hidden as soon as it was closed,  thus stage is shown,  then control back to stage's onHidden event handler?????)
-            if (closingAlert.getResult() == ButtonType.NO)
-                stage.show();
-        });
-    }
-
     @FXML
     private void initialize() throws IOException{
 
@@ -64,160 +68,153 @@ public class MainController {       // Loose coupling between UI(client) and log
         root.setMaxHeight(App.screenHeight);        root.setMaxWidth(App.screenHeight - hOther);
         stage.setMinHeight(root.getMinHeight()*1.1);        stage.setMinWidth(root.getMinWidth()*1.1);
 
-        VBox.setVgrow(options, Priority.NEVER);     
-        addTiles();
+        VBox.setVgrow(options, Priority.NEVER);     // fixing options' dimensions   
 
-        //double min = (App.screenHeight>App.screenWidth ? App.screenWidth : App.screenHeight);
-        Scene scene = new Scene(root, App.screenHeight/2, App.screenHeight/2-hOther);//, 0.75*min/10*dim*dim, min/10*dim*dim+50);
+        Scene scene = new Scene(root, prevWidth, prevHeight);//, 0.75*min/10*dim*dim, min/10*dim*dim+50);
+
+        scene.getStylesheets().add(getClass().getResource("style/" + color + ".css").toExternalForm());
+
         stage.setScene(scene);
         stage.setTitle("SUDOKU SOLVER");
+        stage.sizeToScene();
 
+        addTiles();
         stage.show();
+
+        ///////////////////////////////////
+        closingAlert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+        closingAlert.setContentText("Go back to Menu?");
+        stage.setOnCloseRequest(e -> {  // When possibly refreshing instance, store all info that will carry over to next instance
+            prevHeight = root.getHeight();  prevWidth = root.getWidth();
+            e.consume();
+            closingAlert.show();
+        });        
+        // For some reason alert.showAndWait() created all sorts of problems (MainScene being visible but unresponsive if we decided to stay after the alert pops up,  stage simply not being visible if we pressed NO and never showing until the entire application was restarted and so on...)
+        closingAlert.setOnHidden(e -> {     // My best guess is that since in showAndWait it waits for the stage to be closed before returning to caller,  when alert was hidden, control could be transferred to caller, or to alert's hidden handler,  and this might have led to some kind of obfuscation  (Maybe control went from stage onHidden event handler to the alert stage being shown and wait,  to the alert's on hidden as soon as it was closed,  thus stage is shown,  then control back to stage's onHidden event handler?????)
+            if (closingAlert.getResult() == ButtonType.YES)
+                stage.hide();
+        });
     }
 
     @FXML
-    private void switchToMenu() throws IOException {
-        stage.hide();
+    private void clear() throws IOException{    // New instances of scene,controller only when refreshing (closing->opening XOR clearing). Keep track of all information between instances
+        prevHeight = root.getHeight();  prevWidth = root.getWidth();
+        new MainScene(dim);
     }
 
     
-    private Tile[][][][] tiles = new Tile[dim][dim][dim][dim];
-
+    private MainScene.Tile[][][][] tiles = new MainScene.Tile[dim][dim][dim][dim];
     private void addTiles() {
+        board.getStyleClass().add("grid-pane");
         for (int i=0; i<dim; i++) {
             for (int j=0; j<dim; j++) {
                 GridPane subGrid = new GridPane();
-                subGrid.setStyle("-fx-border-width: 2; -fx-border-style: solid; -fx-border-color: "+color);
+                subGrid.getStyleClass().add("grid-pane");
+                
                 for (int k=0; k<dim; k++)
                     for (int l=0; l<dim; l++) {
-                        Tile tile = new Tile(i,j,k,l);
-                        subGrid.add(tile, k, l);
+                        MainScene.Tile tile = root.new Tile(i,j,k,l);
+
+                        //          --Somehow this is VERY important for layout--          //////////////////////////////////////////////////////////////////////////////////////////////////// 
+                        double minTileDim = (root.getMinHeight() - root.heightOther)/(dim*dim) ;
+                        // double maxTileDim = (root.getMaxHeight() - root.heightOther)/(dim*dim) ;
+
+                        /////// Specifically setting minSize
+                        tile.setMinSize(minTileDim, minTileDim);
+                        // tile.setMaxSize(maxTileDim, maxTileDim);
+                        ///////////////////////////////////////////////////////////////////////////////////////////////////////
+                        
+                        tile.focusedProperty().addListener( (ObservableValue<? extends Boolean> observable, Boolean oldFocus, Boolean newFocus) -> {         // User Focus EventListener added to each tile
+                            
+                            if (!locked && oldFocus==true && newFocus==false) {    // An input may have been provided
+                                
+                                // System.out.println("last Entered: '"+tile.lastEntered+"'\tCurrent: '"+tile.getText()+"'");
+                                
+                                if (tile.lastEntered.equals( tile.getText() ))     // We either hovered, or thought of editing, but no change in input!
+                                    return;
+                                // System.out.printf("We're still here\n");
+                                boolean isPlaced=false;
+                                int input;
+                                try {
+                                    input = Integer.parseInt(tile.getText());
+                                    if (lBoard.placeDigit(tile.row, tile.col, tile.srow, tile.scol, input))
+                                        isPlaced=true;
+                                }
+                                catch (NumberFormatException e) {
+                                }
+                                if (!isPlaced) {    // Invalid input
+                                    tile.clear();
+                                    lBoard.removeDigit(tile.row, tile.col, tile.srow, tile.scol);
+                                }
+                                tile.lastEntered = tile.getText();
+                            }
+                
+                        });
+
+                        subGrid.add(tile, l, k);    // default col and wo span to 1
                         tiles[i][j][k][l] = tile;
                     }
-                board.add(subGrid, i, j);
-            }
-        }
-    }
-
-    @FXML
-    private void solve() {  
-        lBoard.solve();
-        // while(!lBoard.observableState.isEmpty()) {
-        //     int[] trace = lBoard.observableState.pollFirst();
-        //     ( (Tile) ((GridPane) board.getChildren().get(dim*trace[0]+trace[1])).getChildren().get(dim*trace[2]+trace[3]) ).setText(""+trace[4]);
-        // }
-        for (int i=0; i<dim; i++) {
-            for (int j=0; j<dim; j++) {
-                for (int k=0; k<dim; k++){
-                    for (int l=0; l<dim; l++) {
-                        tiles[i][j][k][l].setText(""+lBoard.board[i][j][k][l]);
-                        tiles[i][j][k][l].setStyle("-fx-font-fill: black;");
-                        // tiles[i][j][k][l].setEditable(false);
-                        tiles[i][j][k][l].setMouseTransparent(true);
-                    }
-                }
-            }
-        }
-    }
-
-
-    class Tile extends TextField {
-        private int row, col, srow, scol;
-        private String lastEntered = new String();      // Initially the default empty string
-
-        final String defaultStyle = "-fx-border-color: black; -fx-border-width: 1; -fx-border-style: solid; -fx-text-fill: " + color;
-
-        // @Override
-        // protected double computePrefWidth(double height) {      // The preferred width computed for said region at any given height will be height, which means that excess width will not mean that the width will be more than height in theory
-        //     return this.getHeight();
-        // }
-
-        // @Override
-        // protected double computePrefHeight(double width) {      // always computes the height dim that can be fit along the minimum dimension, hence width property can be bound to height
-        //     if (root.getWidth() < root.getHeight()) {
-        //         return ( root.getWidth() -20 -10 -4*dim )/(dim*dim) - 2;
-        //     }
-        //     else {
-        //         return ( root.getHeight() - 60 - 30 -10 -4*dim )/(dim*dim) - 2;
-        //     }
-        // }        
-
-        Tile(int row, int col, int srow, int scol) {
-            this.setStyle(defaultStyle);
-            this.row = row;
-            this.col = col;
-            this.srow = srow;
-            this.scol = scol;
-
-            this.setAlignment(Pos.CENTER);
-            // this.setMinSize(20, 20);
-            double minTileDim = (root.getMinHeight() - 60 - 30 -10 -4*dim)/(dim*dim) - 2;
-            double maxTileDim = (root.getMaxHeight() - 60 - 30 - 10 -4*dim)/(dim*dim) - 2;
-            this.setMinSize(minTileDim, minTileDim);
-            this.setMaxSize(maxTileDim, maxTileDim);
-
-            this.prefHeightProperty().bind(root.minDimensionProperty());
-            this.prefWidthProperty().bind(root.minDimensionProperty());
             
-            this.heightProperty().addListener( (ObservableValue<? extends Number> observable, Number oldValue, Number newValue ) -> {
-                this.setFont(new Font(newValue.doubleValue()*0.4));
-            });
-            // this.prefWidthProperty().bind(root.widthProperty().add(-20-10-4*dim).divide(dim*dim).add(-2));
-
-            // //****TEST CODE*********** */
-            // this.widthProperty().addListener( (ObservableValue<? extends Number> observable, Number oldWidth, Number newWidth) -> {
-            //     if (newWidth.doubleValue()<this.getHeight()) {
-            //         this.setPrefHeight(newWidth.doubleValue());
-            //     }
-            // });
-
-            //this.minDimensionProperty.addListener(null);
-
-            // this.setPrefSize(100, 100);
-
-            // this.textProperty().addListener( (ObservableValue<? extends String> observable, String oldString, String newString) -> {       // Whenever observable value textProperty cahnges, the listener is notified (as it is registered to it using addListener()) and the changed method is called // ObservableValue<T> interface, wraps value of T as Observable
-            //     try {
-            //         int num = Integer.parseInt(newString);
-            //         if (num>0 && num<=dim*dim) {
-
-            //             if (lBoard.placeDigit(row, col, srow, scol, num) || lBoard.board[row][col][srow][scol]==num)
-            //                 return;
-            //         }
-            //     }
-            //     catch (NumberFormatException e) {
-            //     }
-                
-            //     // this.setStyle("-fx-border-color: red; -fx-border-width: 5; -fx-border-style: solid;");
-            //     this.clear();
-            //     // this.setStyle(defaultStyle);
-            //     // System.out.println("Height: " + this.getHeight() + "\tPreferred Width: " + this.computePrefWidth(this.getHeight()) + "\tWidth: " + this.getWidth() + "\tMin Dimension: " + minTileDim);
-            //     System.out.println("Width: " + this.getWidth() + "\tPreferred Height: " + this.computePrefHeight(this.getWidth()) + "\tHeight: " + this.getHeight() + "\tMin Dimension: " + minTileDim);
-            // });
-
-            //***************************************** */
-            this.focusedProperty().addListener((ObservableValue<? extends Boolean> observable, Boolean oldFocus, Boolean newFocus) -> {         // User Focus EventListener added to each tile
-                if (oldFocus==true && newFocus==false) {
-                    String text=this.getText();
-                    System.out.println("Height: " + this.getHeight() + "\tPrefHeight" + this.getPrefHeight() + "\tWidth: " + this.getWidth() + "\tPrefWidth: " + this.getPrefWidth());
-                    if (text.equals(lastEntered)) return;      // == tests for reference equality!!          // If nothing done, then do nothing 
-                    try {
-                        int num = Integer.parseInt(text);
-                        if (num>0 && num<=dim*dim) {
-                            if (lBoard.placeDigit(row, col, srow, scol, num)) {  // Text to be input is successfully placed on board
-                                lastEntered = text;
-                                return;
-                            }
-                            // Focus is UserFocus which means that this checks solely for userinput
-                        }
-                    }
-                    
-                    catch (NumberFormatException e) {
-                    }
-                    lastEntered = "";       // LastEntered Set to empty string
-                    this.clear();
-                }
-
-            });
+                board.add(subGrid, j, i);   // col, row
+            }
         }
     }
+    
+
+    boolean locked = false;     // App locks user from editing grid any further after grid has been solved
+    @FXML
+    private void solve() {
+        if (locked)
+            return;  
+        locked=true;
+
+        for (int i=0; i<dim; i++)
+            for (int j=0; j<dim; j++)
+                for (int k=0; k<dim; k++)
+                    for (int l=0; l<dim; l++)
+                        tiles[i][j][k][l].setEditable(false);   // Can't be edited by user no more
+
+        // Thread logicThread = new Thread(new Runnable() {
+        //     public void run() {
+        //         lBoard.solve();
+        //     }
+        // });
+        // logicThread.start();
+        lBoard.solve();
+
+        // for (int i=0; i<dim; i++) {
+        //     for (int j=0; j<dim; j++) {
+        //         for (int k=0; k<dim; k++){
+        //             for (int l=0; l<dim; l++) {
+        //                 if (tiles[i][j][k][l].getText()=="") {
+        //                     tiles[i][j][k][l].setText(""+lBoard.board[i][j][k][l]);
+        //                     tiles[i][j][k][l].setStyle("-fx-text-fill: black;");
+        //                 }
+        //                 // tiles[i][j][k][l].setEditable(false);
+        //                 // tiles[i][j][k][l].setMouseTransparent(true);
+        //             }
+        //         }
+        //     }
+        // }
+
+        while (!lBoard.observableState.isEmpty()) {
+            int[] step = lBoard.observableState.pollFirst();    // Ordered tuple having all information regarding step that we took
+            int value = step[0];    int i, j, k, l;
+            i=step[1];  j=step[2];  k=step[3];  l=step[4];
+
+            PauseTransition p = new PauseTransition( Duration.millis(5) );
+            p.setOnFinished( e -> {
+                MainScene.Tile t = tiles[i][j][k][l];
+                t.setStyle("-fx-text-fill: black;");
+                t.setText(""+ ((value!=0) ? value : ""));   // value=0 in step means backtrack, else extension try
+            });
+            solveAnimation.getChildren().add(p);
+        }
+
+        solveAnimation.play();
+    }
+
+    // Animations
+
+    private SequentialTransition solveAnimation = new SequentialTransition();
 }

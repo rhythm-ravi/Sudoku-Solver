@@ -6,18 +6,25 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.layout.*?>
 
+<?import java.net.URL?>
+<!-- <?scenebuilder-stylesheet main.css?> -->
+
 <!-- <VBox fx:id="root" alignment="CENTER" spacing="20.0" fillWidth="false" xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.dooku.MainController"> -->
 <fx:root fx:id="root" type="com.dooku.MainScene" alignment="CENTER" spacing="20.0" fillWidth="false" xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.dooku.MainController">
-
-    <GridPane fx:id="board" alignment="CENTER" style="-fx-border-width: 5; -fx-border-style: solid; -fx-border-color: black;" />    <!--Styles are applied only when the graph is displayed within a scene-->
+    <!-- style="-fx-border-width: 5; -fx-border-style: solid; -fx-border-color: black;" -->
+    <GridPane fx:id="board" alignment="CENTER" />    <!--Styles are applied only when the graph is displayed within a scene-->
     <Label text="Sudoku Solver" />
 
-    <HBox fx:id="options" spacing="20.0" style="-fx-border-width: 1; -fx-border-color: black;">
+    <HBox fx:id="options" spacing="20.0">
         <Button fx:id="solveButton" text="Solve" minHeight="30.0" onAction="#solve"/>
-        <Button fx:id="secondaryButton" text="Go Back to Menu" minHeight="30.0" onAction="#switchToMenu" />
+        <Button fx:id="clearButton" text="Clear" minHeight="30.0" onAction="#clear" />
     </HBox>
 
     <padding>
         <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
     </padding>
+
+    <stylesheets>
+        <URL value="@../style/main.css" />
+    </stylesheets>
 </fx:root>

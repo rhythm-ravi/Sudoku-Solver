@@ -1,0 +1,31 @@
+.region {
+    -fx-background-color: grey;
+}
+
+
+.button {
+    -fx-background-color: orange;
+    -fx-text-fill: white;
+}   
+
+.button:hover {
+    -fx-background-color: white;
+    -fx-text-fill: orange;
+}
+
+.tile {
+    -fx-text-fill: orange;
+    -fx-highlight-fill: orange;
+}
+
+.tile:hover {
+    -fx-background-color: orange;
+    -fx-text-fill: white;
+}
+
+
+.grid-pane {
+    -fx-border-width: 2;
+    -fx-border-style: solid;
+    -fx-border-color: orange;
+}

@@ -32,12 +32,11 @@ public class App extends Application {          // Corresponds the actual javafx
 
     @Override
     public void start(Stage stage) throws IOException, InterruptedException {
-        scene = new Scene(loadFXML("menu"), 440, 600);      //+200
+        // scene = new Scene(loadFXML("menu"), 440, 600);      //+200
+        scene = new Scene(loadFXML("menu"), screenWidth/4, screenHeight/4);      // length * breadth ie width*height
         stage.setScene(scene);
         
-        Alert alert = new Alert(AlertType.CONFIRMATION);
-        alert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
-        alert.setContentText("Would you like to quit the application?");
+        Alert alert = new Alert(AlertType.CONFIRMATION, "Would you like to quit the application?", ButtonType.YES, ButtonType.NO);
 
         alert.setOnHidden(e -> {
             if (alert.getResult()==ButtonType.NO) {
@@ -46,10 +45,11 @@ public class App extends Application {          // Corresponds the actual javafx
         });
 
         stage.setOnHidden(e -> alert.show());
-        // stage.setResizable(false);
+        
+        stage.setResizable(false);
         // stage.minWidthProperty().bind(scene.heightProperty());
         // stage.minHeightProperty().bind(scene.heightProperty());
-        stage.show();
+        stage.show();       // Only when stage is hidden does this method terminate, as alert object would have been marked for garbage collection since the only reference to it is in the local variable poin
 
     }
 
@@ -62,7 +62,7 @@ public class App extends Application {          // Corresponds the actual javafx
     }
 
     private static Parent loadFXML(String fxml) throws IOException {
-        FXMLLoader fxmlLoader = new FXMLLoader(App.class.getResource(fxml + ".fxml"));
+        FXMLLoader fxmlLoader = new FXMLLoader(App.class.getResource("fxml/"+fxml + ".fxml"));
         return fxmlLoader.load();
     }
 

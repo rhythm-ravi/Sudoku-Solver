@@ -12,6 +12,7 @@ public class Board {
 
     /*private*/ int[][][][] board;          // Used to represent an n*n matrix of n*n matrices (of digits)
     private int n;
+    boolean isUnsolved = true;
 
     HashMap<Integer, boolean[]> SubgridMap = new HashMap<>();        // Maps each individual subgrid with the list of its possible values
     HashMap<Integer,  boolean[]> RowMap = new HashMap<>();
@@ -35,7 +36,7 @@ public class Board {
             for (int j=0; j<n; j++) {
                 
                 boolean[] allTrue = new boolean[n*n+1];
-                for (int k=1; k<=n*n; k++) allTrue[k]=true;
+                for (int k=0; k<=n*n; k++) allTrue[k]=true;
 
                 int key = n*i + j;
                 SubgridMap.put( key, allTrue.clone() );
@@ -53,16 +54,18 @@ public class Board {
         int ckey = col*n + scol;
 
         int currentValue = board[row][col][srow][scol];
-        SubgridMap.get(gkey)[currentValue] = true;
-        RowMap.get(rkey)[currentValue] = true;
-        ColumnMap.get(ckey)[currentValue] = true;
-        currentValue++; 
 
-        while (currentValue <= n*n) {
+        currentValue++;
+
+        while (currentValue <= n*n) {   // All tries for extension here
+            observableState.offerLast(new int[]{currentValue, row, col, srow, scol});
             if ( placeDigit(row, col, srow, scol, currentValue) )
                 return true;
             currentValue++;
         }
+
+        observableState.offerLast(new int[]{0, row, col, srow, scol});
+        removeDigit(row, col, srow, scol);  // Alll backtracks here, so adding extension tries and backtracks should give us entire solution step set
 
         board[row][col][srow][scol] = 0;          // backtracking to the previous configuration, hence will need to be checked for all possible values extending from any new configuration
         return false;                             // No valid placements for said tile under given k-1 config
@@ -75,15 +78,29 @@ public class Board {
         int rkey = row*n + srow;
         int ckey = col*n + scol;
 
-        if (    SubgridMap.get(gkey)[value]   &&      RowMap.get(rkey)[value]     &&      ColumnMap.get(ckey)[value]        ) {         // If placeable based on possibilities for the three coordinates
+        if (    (value>=1 && value<=n*n) && SubgridMap.get(gkey)[value]   &&      RowMap.get(rkey)[value]     &&      ColumnMap.get(ckey)[value]        ) {         // If placeable based on possibilities for the three coordinates
+            removeDigit(row, col, srow, scol);  // Remove current digit if valid placement
+            
             SubgridMap.get(gkey)[value] = false;      // For each coord, its possibilities are updated (for value)
             RowMap.get(rkey)[value] = false;
             ColumnMap.get(ckey)[value] = false;
             board[row][col][srow][scol] = value;
+
             return true;                          // Tile had valid placements and was placed with the next valid value
         }
 
         return false;                             // No valid placements for said tile under given k-1 config
+    }
+
+    public void removeDigit(int row, int col, int srow, int scol) {
+        int gkey = row*n + col;
+        int rkey = row*n + srow;
+        int ckey = col*n + scol;
+
+        int currentValue = board[row][col][srow][scol];
+        SubgridMap.get(gkey)[currentValue] = true;
+        RowMap.get(rkey)[currentValue] = true;
+        ColumnMap.get(ckey)[currentValue] = true;   // Whatever was before now becomes placable
     }
 
     public Deque<int[]> observableState = new LinkedList<>();
@@ -96,7 +113,13 @@ public class Board {
         // Either store those nums and check whether current tile belongs to the fixed nums collection or not (for all tiles)
         // Or use given approach
         generateList((p,q) -> {
-            for (int i=0; i<q; i++) for (int j=0; j<q; j++) for (int k=0; k<q; k++) for (int l=0; l<q; l++)  if (board[i][j][k][l]==0) p.offerLast(new int[]{i,j,k,l});    
+            // here row and column corresponding to if the board were a n^2 * n^2 matrix
+            for (int row=0; row<q*q; row++) for (int col=0; col<q*q; col++)  {
+                int i, j, k, l;
+                i=row/n;    j=col/n;    k=row%n;    l=col%n;
+                if (board[i][j][k][l]==0) 
+                    p.offerLast(new int[]{i,j,k,l});    
+            }
         });
 
 
@@ -112,10 +135,9 @@ public class Board {
             }
             else {
                 queue.offerFirst(stack.pop());
-            }
-            //// stupiddd
-            // observableState.offerLast(new int[]{current[0],current[1],current[2],current[3], board[current[0]][current[1]][current[2]][current[3]]});
+            }        
         }
+        isUnsolved=false;
     }
 }
 

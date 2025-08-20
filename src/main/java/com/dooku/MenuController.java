@@ -13,9 +13,10 @@ public class MenuController {
 
     @FXML
     private void switchToMain() throws IOException {
-  
-        new MainScene();
-        // FXMLLoader.load(getClass().getResource("main.fxml"));
+        int dim = SettingsController.getSetting("dimensions", Integer.class);
+        new MainScene(dim);
+        
+        // FXMLLoader.load(getClass().getResource("fxml/main.fxml"));
     }
 
     @FXML
@@ -23,9 +24,7 @@ public class MenuController {
 
         // App.setRoot("settings");
 
-        //// App.setRoot(new Settings());
-
-        FXMLLoader.load(getClass().getResource("settings.fxml"));
+        FXMLLoader.load(getClass().getResource("fxml/settings.fxml"));
     }
 
 

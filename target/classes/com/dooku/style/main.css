@@ -1,0 +1,11 @@
+
+
+
+
+.tile:hover {
+    -fx-cursor: crosshair;
+}
+
+.button:hover {
+    -fx-cursor: hand;
+}   

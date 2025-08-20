@@ -40,7 +40,7 @@ public class SettingsController {
     private static Choice[][] ddChoices = {        // Using Choice instead of object so that we have access to content field
         {new Choice<Object>(null,"--")},
         {new Choice<Integer>(2, "4 x 4"), new Choice<Integer>(3, "9 x 9"), new Choice<Integer>(4,"16 x 16"), new Choice<Integer>(5,"25 x 25") },
-        {new Choice<String>("black;","Black"), new Choice<String>("red;","Red"), new Choice<String>("blue;","Blue"), new Choice<String>("green;","Green"), new Choice<String>("orange;", "Orange")}
+        {new Choice<String>("black","Black"), new Choice<String>("red","Red"), new Choice<String>("blue","Blue"), new Choice<String>("green","Green"), new Choice<String>("orange", "Orange")}
 
     };
 
