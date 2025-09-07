@@ -1,154 +1,373 @@
 package com.dooku;
 
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Stack;
-import java.util.function.*;
+import java.util.*;
 
-import java.util.Arrays;
 public class Board {
     
-
-    /*private*/ int[][][][] board;          // Used to represent an n*n matrix of n*n matrices (of digits)
-    private int n;
-    boolean isUnsolved = true;
-
-    HashMap<Integer, boolean[]> SubgridMap = new HashMap<>();        // Maps each individual subgrid with the list of its possible values
-    HashMap<Integer,  boolean[]> RowMap = new HashMap<>();
-    HashMap<Integer,  boolean[]> ColumnMap = new HashMap<>();
-
-    Deque<int[]> queue = new LinkedList<>();
-    Stack<int[]> stack = new Stack<>();
-
-    private void generateList(BiConsumer<Deque<int[]>,Integer> rule) {
-        rule.accept(queue, n);
-    }
-
-    public Board(int n) {       // Creates a Board object with empty matrice of n2 by n2
+    private final int n; // Grid dimension (3 for 9x9, 2 for 4x4, etc.)
+    private final int size; // Total size (9 for 9x9, 4 for 4x4, etc.)
+    private int[][] board; // Simple 2D representation
+    
+    // Bitwise constraint tracking - much faster than HashMaps
+    private int[] rowConstraints;    // Bitmask of used numbers in each row
+    private int[] colConstraints;    // Bitmask of used numbers in each column  
+    private int[] boxConstraints;    // Bitmask of used numbers in each box
+    
+    // For UI animation - maintains compatibility with existing system
+    public Deque<int[]> observableState = new LinkedList<>();
+    
+    private boolean isUnsolved = true;
+    
+    
+    public Board(int n) {
         this.n = n;
-        board = new int[n][n][n][n];       
-        setPossibilities();
-    }
-
-    private void setPossibilities() {
-        for (int i=0; i<n; i++) {
-            for (int j=0; j<n; j++) {
-                
-                boolean[] allTrue = new boolean[n*n+1];
-                for (int k=0; k<=n*n; k++) allTrue[k]=true;
-
-                int key = n*i + j;
-                SubgridMap.put( key, allTrue.clone() );
-                RowMap.put(  key,  allTrue.clone() );
-                ColumnMap.put(  key, allTrue.clone() );
-            }
-        }
-    }
-
-    private boolean placeDigit(int row, int col, int srow, int scol) {      // Place the next possible number on given tile
-
-        // Keys representing coordinates that get affected through this placement
-        int gkey = row*n + col;
-        int rkey = row*n + srow;
-        int ckey = col*n + scol;
-
-        int currentValue = board[row][col][srow][scol];
-
-        currentValue++;
-
-        while (currentValue <= n*n) {   // All tries for extension here
-            observableState.offerLast(new int[]{currentValue, row, col, srow, scol});
-            if ( placeDigit(row, col, srow, scol, currentValue) )
-                return true;
-            currentValue++;
-        }
-
-        observableState.offerLast(new int[]{0, row, col, srow, scol});
-        removeDigit(row, col, srow, scol);  // Alll backtracks here, so adding extension tries and backtracks should give us entire solution step set
-
-        board[row][col][srow][scol] = 0;          // backtracking to the previous configuration, hence will need to be checked for all possible values extending from any new configuration
-        return false;                             // No valid placements for said tile under given k-1 config
+        this.size = n * n;
+        this.board = new int[size][size];
+        this.rowConstraints = new int[size];
+        this.colConstraints = new int[size];
+        this.boxConstraints = new int[size];
     }
     
-    public boolean placeDigit(int row, int col, int srow, int scol, int value) {
+    /**
+     * FIXED: Converts UI's 4D coordinates (i,j,k,l) to internal 2D (row,col)
+     */
+    private int[] convert4Dto2D(int i, int j, int k, int l) {
+        int actualRow = i * n + k;  // i=box row, k=cell row within box
+        int actualCol = j * n + l;  // j=box col, l=cell col within box
+        return new int[]{actualRow, actualCol};
+    }
+    
+    /**
+     * FIXED: Converts internal 2D (row,col) back to UI's 4D (i,j,k,l)
+     */
+    private int[] convert2Dto4D(int row, int col) {
+        int i = row / n;    // which box row
+        int j = col / n;    // which box col
+        int k = row % n;    // row within box
+        int l = col % n;    // col within box
+        return new int[]{i, j, k, l};
+    }
+    
+    /**
+     * Place digit - maintains UI compatibility
+     */
+    public boolean placeDigit(int i, int j, int k, int l, int value) {
+        int[] coords = convert4Dto2D(i, j, k, l);
+        return placeDigitInternal(coords[0], coords[1], value);
+    }
+    
+    /**
+     * Internal place digit with 2D coordinates
+     */
+    private boolean placeDigitInternal(int row, int col, int value) {
+        // if (value < 1 || value > size) return false;
         
-        // Keys representing coordinates that get affected through this placement
-        int gkey = row*n + col;
-        int rkey = row*n + srow;
-        int ckey = col*n + scol;
+        // Remove previous value if exists
+        removeDigitInternal(row, col);
 
-        if (    (value>=1 && value<=n*n) && SubgridMap.get(gkey)[value]   &&      RowMap.get(rkey)[value]     &&      ColumnMap.get(ckey)[value]        ) {         // If placeable based on possibilities for the three coordinates
-            removeDigit(row, col, srow, scol);  // Remove current digit if valid placement
-            
-            SubgridMap.get(gkey)[value] = false;      // For each coord, its possibilities are updated (for value)
-            RowMap.get(rkey)[value] = false;
-            ColumnMap.get(ckey)[value] = false;
-            board[row][col][srow][scol] = value;
-
-            return true;                          // Tile had valid placements and was placed with the next valid value
+        int bitMask = 1 << value;
+        int boxIndex = getBoxIndex(row, col);
+        
+        // Check if placement is valid
+        if ((rowConstraints[row] & bitMask) != 0 ||
+            (colConstraints[col] & bitMask) != 0 ||
+            (boxConstraints[boxIndex] & bitMask) != 0) {
+            return false;
         }
-
-        return false;                             // No valid placements for said tile under given k-1 config
+        
+        // Place the digit
+        board[row][col] = value;
+        rowConstraints[row] |= bitMask;
+        colConstraints[col] |= bitMask;
+        boxConstraints[boxIndex] |= bitMask;
+        
+        return true;
     }
-
-    public void removeDigit(int row, int col, int srow, int scol) {
-        int gkey = row*n + col;
-        int rkey = row*n + srow;
-        int ckey = col*n + scol;
-
-        int currentValue = board[row][col][srow][scol];
-        SubgridMap.get(gkey)[currentValue] = true;
-        RowMap.get(rkey)[currentValue] = true;
-        ColumnMap.get(ckey)[currentValue] = true;   // Whatever was before now becomes placable
+    
+    /**
+     * Remove digit - maintains UI compatibility  
+     */
+    public void removeDigit(int i, int j, int k, int l) {
+        int[] coords = convert4Dto2D(i, j, k, l);
+        removeDigitInternal(coords[0], coords[1]);
     }
+    
+    /**
+     * Internal remove digit with 2D coordinates
+     */
+    private void removeDigitInternal(int row, int col) {
+        int value = board[row][col];
+        if (value == 0) return;
+        
+        int bitMask = 1 << value;
+        int boxIndex = getBoxIndex(row, col);
+        
+        board[row][col] = 0;
+        rowConstraints[row] &= ~bitMask;
+        colConstraints[col] &= ~bitMask;
+        boxConstraints[boxIndex] &= ~bitMask;
+    }
+    
+    /**
+     * Get box index for given row,col
+     */
+    private int getBoxIndex(int row, int col) {
+        return (row / n) * n + (col / n);
+    }
+    
+    /**
+     * Get possible values for a cell using bitwise operations
+     */
+    private int getPossibilities(int row, int col) {
+        if (board[row][col] != 0) return 0;
+        
+        int boxIndex = getBoxIndex(row, col);
+        int usedBits = rowConstraints[row] | colConstraints[col] | boxConstraints[boxIndex];
+        
+        // All possible values except used ones
+        int allPossible = (1 << (size + 1)) - 2; // Bits 1 to size
+        return allPossible & ~usedBits;
+    }
+    
+    /**
+     * Apply naked singles - if a cell has only one possibility, fill it
+     */
+    private int applyNakedSingles(Stack<int[]> prevStates) {
+        int changeCount = 0;
+        
+        for (int row = 0; row < size; row++) {
+            for (int col = 0; col < size; col++) {
+                if (board[row][col] == 0) {
+                    int possibilities = getPossibilities(row, col);
+                    
+                    if (possibilities == 0) return 0; // Invalid state
+                    
+                    if (Integer.bitCount(possibilities) == 1) {
+                        int value = Integer.numberOfTrailingZeros(possibilities);
+                        placeDigitInternal(row, col, value);
+                        
+                        // Add to observable state for UI animation
+                        int[] fourDCoords = convert2Dto4D(row, col);
+                        observableState.offerLast(new int[]{value, fourDCoords[0], fourDCoords[1], fourDCoords[2], fourDCoords[3]});
+                        
+                        prevStates.push(new int[]{row,col});
+                        changeCount++;
+                    }
+                }
+            }
+        }
+        
+        return changeCount;
+    }
+    
+    /**
+     * Apply hidden singles - if a value can only go in one place in a unit, place it
+     */
+    private int applyHiddenSingles(Stack<int[]> prevStates) {
+        int changeCount = 0;
+        
+        // Check rows
+        for (int row = 0; row < size; row++) {
+            for (int value = 1; value <= size; value++) {
+                if ((rowConstraints[row] & (1 << value)) == 0) { // Value not used in row
+                    int possibleCols = 0;
+                    int lastCol = -1;
+                    
+                    for (int col = 0; col < size; col++) {
+                        if ((getPossibilities(row, col) & (1 << value)) != 0) {
+                            possibleCols++;
+                            lastCol = col;
+                        }
+                    }
+                    
+                    if (possibleCols == 1) {
+                        placeDigitInternal(row, lastCol, value);
+                        int[] fourDCoords = convert2Dto4D(row, lastCol);
+                        observableState.offerLast(new int[]{value, fourDCoords[0], fourDCoords[1], fourDCoords[2], fourDCoords[3]});
+                        
+                        prevStates.push(new int[]{row,lastCol});
+                        changeCount++;
+                    }
+                }
+            }
+        }
+        
+        // Check columns
+        for (int col = 0; col < size; col++) {
+            for (int value = 1; value <= size; value++) {
+                if ((colConstraints[col] & (1 << value)) == 0) {
+                    int possibleRows = 0;
+                    int lastRow = -1;
+                    
+                    for (int row = 0; row < size; row++) {
+                        if ((getPossibilities(row, col) & (1 << value)) != 0) {
+                            possibleRows++;
+                            lastRow = row;
+                        }
+                    }
+                    
+                    if (possibleRows == 1) {
+                        placeDigitInternal(lastRow, col, value);
+                        int[] fourDCoords = convert2Dto4D(lastRow, col);
+                        observableState.offerLast(new int[]{value, fourDCoords[0], fourDCoords[1], fourDCoords[2], fourDCoords[3]});
+                        
+                        prevStates.push(new int[]{lastRow,col});
+                        changeCount++;
+                    }
+                }
+            }
+        }
+        
+        // Check boxes
+        for (int boxIdx = 0; boxIdx < size; boxIdx++) {
+            for (int value = 1; value <= size; value++) {
+                if ((boxConstraints[boxIdx] & (1 << value)) == 0) {
+                    int possibleCells = 0;
+                    int lastRow = -1, lastCol = -1;
+                    
+                    int startRow = (boxIdx / n) * n;
+                    int startCol = (boxIdx % n) * n;
+                    
+                    for (int row = startRow; row < startRow + n; row++) {
+                        for (int col = startCol; col < startCol + n; col++) {
+                            if ((getPossibilities(row, col) & (1 << value)) != 0) {
+                                possibleCells++;
+                                lastRow = row;
+                                lastCol = col;
+                            }
+                        }
+                    }
+                    
+                    if (possibleCells == 1) {
+                        placeDigitInternal(lastRow, lastCol, value);
+                        int[] fourDCoords = convert2Dto4D(lastRow, lastCol);
+                        observableState.offerLast(new int[]{value, fourDCoords[0], fourDCoords[1], fourDCoords[2], fourDCoords[3]});
+                        
+                        prevStates.push(new int[]{lastRow,lastCol});
+                        changeCount++;
+                    }
+                }
+            }
+        }
+        
+        return changeCount;
+    }
+    
+    /**
+     * Find the empty cell with fewest possibilities (MCV heuristic)
+     */
+    private int[] findMostConstrainedVariable() {
+        int[] best = null;
+        int minPossibilities = size + 1;
+        
+        for (int row = 0; row < size; row++) {
+            for (int col = 0; col < size; col++) {
+                if (board[row][col] == 0) {
+                    int possibilities = getPossibilities(row, col);
+                    int count = Integer.bitCount(possibilities);
+                    
+                    if (count < minPossibilities) {
+                        minPossibilities = count;
+                        best = new int[]{row, col};
+                        
+                        if (count == 0) return best; // Impossible state, return immediately
+                    }
+                }
+            }
+        }
+        
+        return best;
+    }
+    
+    /**
+     * Main backtracking solver with constraint propagation
+     */
+    private boolean solveWithBacktracking() {
 
-    public Deque<int[]> observableState = new LinkedList<>();
+        // Apply constraint propagation first
+        Stack<int[]> prevStates = new Stack<>();
+        int key = 0;
+        do {
+            key = 0;
+            key += applyNakedSingles(prevStates);
+            key += applyHiddenSingles(prevStates);
+        } while (key!=0);
+        
+        // Find most constrained variable
+        int[] cell = findMostConstrainedVariable();
+        if (cell == null) return true; // Solved!
 
+        int bestRow = cell[0],      bestCol = cell[1];
+        if (getPossibilities(bestRow, bestCol) == 0) {
+            while (!prevStates.empty()) {
+                int row = prevStates.peek()[0],     col = prevStates.peek()[1];
+                prevStates.pop();
+                int[] fourDCoords = convert2Dto4D(row, col);
+                removeDigitInternal(row, col);
+                observableState.offerLast(new int[]{0, fourDCoords[0], fourDCoords[1], fourDCoords[2], fourDCoords[3]});
+            }
+            return false; // No possibilities, backtrack
+        }
+        // Try each possible value
+        for (int value = 1; value <= size; value++) {
+            if ((getPossibilities(bestRow, bestCol) & (1 << value)) != 0) {
+                // Try this value
+                placeDigitInternal(bestRow, bestCol, value);
+                
+                // Add to observable state for UI
+                int[] fourDCoords = convert2Dto4D(bestRow, bestCol);
+                observableState.offerLast(new int[]{value, fourDCoords[0], fourDCoords[1], fourDCoords[2], fourDCoords[3]});
+                
+                if (solveWithBacktracking()) {
+                    return true; // Solution found
+                }
+                
+                // Backtrack
+                removeDigitInternal(bestRow, bestCol);
+
+                // Add backtrack to observable state
+                observableState.offerLast(new int[]{0, fourDCoords[0], fourDCoords[1], fourDCoords[2], fourDCoords[3]});
+            }
+        }
+        
+        while (!prevStates.empty()) {
+            int row = prevStates.peek()[0],     col = prevStates.peek()[1];
+            prevStates.pop();
+            int[] fourDCoords = convert2Dto4D(row, col);
+            removeDigitInternal(row, col);
+            observableState.offerLast(new int[]{0, fourDCoords[0], fourDCoords[1], fourDCoords[2], fourDCoords[3]});
+        }
+        return false; // No solution found
+    }
+    
+    /**
+     * Main solve method - maintains UI compatibility
+     */
     public void solve() {
+        observableState.clear();
         
-
-        // To be placed queue only generated after the fixed nums have been added, since 
-        // those numbs mustnt be changed
-        // Either store those nums and check whether current tile belongs to the fixed nums collection or not (for all tiles)
-        // Or use given approach
-        generateList((p,q) -> {
-            // here row and column corresponding to if the board were a n^2 * n^2 matrix
-            for (int row=0; row<q*q; row++) for (int col=0; col<q*q; col++)  {
-                int i, j, k, l;
-                i=row/n;    j=col/n;    k=row%n;    l=col%n;
-                if (board[i][j][k][l]==0) 
-                    p.offerLast(new int[]{i,j,k,l});    
-            }
-        });
-
-
-        // if dequed from ques,then vailid k config( ie for tiles dequed)
-        while(!queue.isEmpty()) {       // While n config not attained
-            int[] current = queue.peekFirst();
-            // System.out.println( SubgridMap.get(n*current[0]+current[1])[4] );
-            // // int row = current[0], col = current[1], srow = current[2], scol = current[3];
-            // System.out.println(current[0]*n + current[1] + ""  + (current[2]*n  + current[3] ));
-            if (placeDigit(current[0], current[1], current[2], current[3])) {          // If placement successful
-                // System.out.println("SUCCESS!");
-                stack.push(queue.pollFirst());
-            }
-            else {
-                queue.offerFirst(stack.pop());
-            }        
+        if (solveWithBacktracking()) {
+            isUnsolved = false;
         }
-        isUnsolved=false;
+    }
+    
+    /**
+     * Check if puzzle is solved
+     */
+    public boolean isSolved() {
+        return !isUnsolved;
+    }
+    
+    /**
+     * Debug method to print current board state
+     */
+    public void printBoard() {
+        System.out.println("Current board state:");
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                System.out.print(board[i][j] + " ");
+            }
+            System.out.println();
+        }
     }
 }
-
-// each row has a set of tiles, and so on
-// each column has a set of tiles and the tiles a
-// each tile exists independently (outside of their scopes) and draws from a row, column and subgrid
-
-// Its possibilities is the intersection b/w them all, and since if any changes, then all would need to change
-
-// each tile refers to the total al collection of them all, 
-
-// if we backtrack on a tile,
-
-
