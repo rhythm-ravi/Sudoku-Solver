@@ -2,6 +2,7 @@ package com.dooku;
 
 import java.io.IOException;
 
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.ReadOnlyDoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
@@ -33,6 +34,10 @@ import javafx.scene.text.Font;
 
 
 import javafx.animation.*;
+
+import javafx.beans.binding.DoubleBinding;
+import javafx.beans.binding.Bindings;
+
 
 public class MainController {       // Loose coupling between UI(client) and logic(server)
 
@@ -73,13 +78,31 @@ public class MainController {       // Loose coupling between UI(client) and log
         Scene scene = new Scene(root, prevWidth, prevHeight);//, 0.75*min/10*dim*dim, min/10*dim*dim+50);
 
         scene.getStylesheets().add(getClass().getResource("style/" + color + ".css").toExternalForm());
+        scene.setOnKeyPressed( e -> {
+            switch (e.getCode()) {
+                case UP:
+                case DOWN:
+                case LEFT:
+                case RIGHT:
+                case W:
+                case A:
+                case S:
+                case D:
+                    if (lastTileFocused != null)
+                        navigateToTile(lastTileFocused[0], lastTileFocused[1], lastTileFocused[2], lastTileFocused[3]);
+                    break;
+                default:
+                    return;
+            }
+            
+        });
 
         stage.setScene(scene);
         stage.setTitle("SUDOKU SOLVER");
         stage.sizeToScene();
 
-        addTiles();
         stage.show();
+        addTiles();
 
         ///////////////////////////////////
         closingAlert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
@@ -104,32 +127,100 @@ public class MainController {       // Loose coupling between UI(client) and log
 
     
     private MainScene.Tile[][][][] tiles = new MainScene.Tile[dim][dim][dim][dim];
+    int[] lastTileFocused = null;      // Last tile focused
+
     private void addTiles() {
         board.getStyleClass().add("grid-pane");
+
+        int heightOther = 60+30+10+4*dim +20;   int widthOther = 20+10+4*dim +20;
+        DoubleBinding tileBinding = Bindings.createDoubleBinding(
+            () -> {
+                return Math.min(root.getHeight()-heightOther, root.getWidth()-widthOther)/(dim*dim);
+            }, root.widthProperty(), root.heightProperty()
+        );
+
         for (int i=0; i<dim; i++) {
             for (int j=0; j<dim; j++) {
                 GridPane subGrid = new GridPane();
                 subGrid.getStyleClass().add("grid-pane");
                 
+
                 for (int k=0; k<dim; k++)
                     for (int l=0; l<dim; l++) {
+
                         MainScene.Tile tile = root.new Tile(i,j,k,l);
-
-                        //          --Somehow this is VERY important for layout--          //////////////////////////////////////////////////////////////////////////////////////////////////// 
-                        double minTileDim = (root.getMinHeight() - root.heightOther)/(dim*dim) ;
-                        // double maxTileDim = (root.getMaxHeight() - root.heightOther)/(dim*dim) ;
-
-                        /////// Specifically setting minSize
-                        tile.setMinSize(minTileDim, minTileDim);
-                        // tile.setMaxSize(maxTileDim, maxTileDim);
-                        ///////////////////////////////////////////////////////////////////////////////////////////////////////
+                        tiles[i][j][k][l] = tile;    
                         
+                        // UI Listeners
+                        // Dimension binding
+                        tile.minHeightProperty().bind(tileBinding);
+                        tile.prefHeightProperty().bind(tileBinding);
+                        tile.maxHeightProperty().bind(tileBinding);
+                        tile.minWidthProperty().bind(tileBinding);
+                        tile.prefWidthProperty().bind(tileBinding);
+                        tile.maxWidthProperty().bind(tileBinding);
+                        // Cool hovering mouse input
+                        tile.setOnMouseEntered( e -> {
+                            tile.requestFocus();
+                        });
+                        tile.setOnMouseExited( e -> {
+                            tile.getScene().getRoot().requestFocus();      // Remove focus from this tile
+                        });
+                        // Keyboard navigation if on a tile
+                        tile.setOnKeyPressed( e -> {
+                            int idx = (tile.row*dim + tile.srow)*dim*dim + (tile.col*dim + tile.scol);
+                            int nidx = dim*dim*dim*dim;
+                            switch (e.getCode()) {
+                                case UP:
+                                    idx = (idx - dim*dim + nidx) % nidx;
+                                    break;
+                                case DOWN:
+                                    idx = (idx + dim*dim) % nidx;
+                                    break;
+                                case LEFT:
+                                    idx = (idx - 1 + nidx) % nidx;
+                                    break;
+                                case RIGHT:
+                                    idx = (idx + 1) % nidx;
+                                    break;
+                                // case W:
+                                //     navigateToTile((tile.row-1)%dim, tile.col, tile.srow, tile.scol);
+                                //     break;
+                                // case S:
+                                //     navigateToTile((tile.row+1)%dim, tile.col, tile.srow, tile.scol);
+                                //     break;
+                                // case A:
+                                //     navigateToTile(tile.row, (tile.col-1)%dim, tile.srow, tile.scol);
+                                //     break;
+                                // case D:
+                                //     navigateToTile(tile.row, (tile.col+1)%dim, tile.srow, tile.scol);
+                                //     break;
+
+                                case ENTER:
+                                    root.requestFocus();   // Remove focus from this tile
+                                default:
+                                    break;
+                            }
+                            int row = (idx / (dim*dim)) / dim;   int col = (idx % (dim*dim)) / dim;   int srow = (idx / (dim*dim)) % dim;   int scol = (idx % (dim*dim)) % dim;
+                            navigateToTile(row, col, srow, scol);
+                        });
+                        // Font size binding
+                        tile.heightProperty().addListener( (ObservableValue<? extends Number> observable, Number oldValue, Number newValue ) -> {
+                            tile.setFont(new Font(newValue.doubleValue()*0.4));
+                        });
+
+                        // Last focused tile tracking
+                        tile.focusedProperty().addListener( (ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) -> {
+                            if (newValue) {     // Gained focus
+                                lastTileFocused = new int[]{tile.row, tile.col, tile.srow, tile.scol};
+                            }
+                        });
+
+                        // Input listener
                         tile.focusedProperty().addListener( (ObservableValue<? extends Boolean> observable, Boolean oldFocus, Boolean newFocus) -> {         // User Focus EventListener added to each tile
                             
-                            if (!locked && oldFocus==true && newFocus==false) {    // An input may have been provided
-                                
-                                // System.out.println("last Entered: '"+tile.lastEntered+"'\tCurrent: '"+tile.getText()+"'");
-                                
+                            if (!root.isLocked && oldFocus==true && newFocus==false) {    // An input may have been provided
+                                                                
                                 if (tile.lastEntered.equals( tile.getText() ))     // We either hovered, or thought of editing, but no change in input!
                                     return;
                                 // System.out.printf("We're still here\n");
@@ -152,21 +243,26 @@ public class MainController {       // Loose coupling between UI(client) and log
                         });
 
                         subGrid.add(tile, l, k);    // default col and wo span to 1
-                        tiles[i][j][k][l] = tile;
                     }
             
                 board.add(subGrid, j, i);   // col, row
             }
         }
     }
+
+    // For ui navigation
+    private void navigateToTile(int i, int j, int k, int l) {
+        if (i<0 || i>=dim || j<0 || j>=dim || k<0 || k>=dim || l<0 || l>=dim)
+            return;
+        tiles[i][j][k][l].requestFocus();
+    }
     
 
-    boolean locked = false;     // App locks user from editing grid any further after grid has been solved
     @FXML
     private void solve() {
-        if (locked)
+        if (root.isLocked)
             return;  
-        locked=true;
+        root.isLocked=true;
 
         for (int i=0; i<dim; i++)
             for (int j=0; j<dim; j++)

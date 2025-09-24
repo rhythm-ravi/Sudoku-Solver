@@ -60,7 +60,7 @@ public class Board {
      * Internal place digit with 2D coordinates
      */
     private boolean placeDigitInternal(int row, int col, int value) {
-        // if (value < 1 || value > size) return false;
+        if (value < 1 || value > size) return false;
         
         // Remove previous value if exists
         removeDigitInternal(row, col);

@@ -18,7 +18,7 @@
     -fx-highlight-fill: green;
 }
 
-.tile:hover {
+.tile.tile:focused {
     -fx-background-color: green;
     -fx-text-fill: white;
 }
