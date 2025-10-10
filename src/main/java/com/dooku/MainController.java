@@ -120,9 +120,69 @@ public class MainController {       // Loose coupling between UI(client) and log
     }
 
     @FXML
+    private void solve() {
+        if (root.isLocked)
+            return;  
+        root.isLocked=true;
+
+        for (int i=0; i<dim; i++)
+            for (int j=0; j<dim; j++)
+                for (int k=0; k<dim; k++)
+                    for (int l=0; l<dim; l++)
+                        tiles[i][j][k][l].setEditable(false);   // Can't be edited by user no more
+
+        // Thread logicThread = new Thread(new Runnable() {
+        //     public void run() {
+        //         lBoard.solve();
+        //     }
+        // });
+        // logicThread.start();
+        lBoard.solve();
+
+        // for (int i=0; i<dim; i++) {
+        //     for (int j=0; j<dim; j++) {
+        //         for (int k=0; k<dim; k++){
+        //             for (int l=0; l<dim; l++) {
+        //                 if (tiles[i][j][k][l].getText()=="") {
+        //                     tiles[i][j][k][l].setText(""+lBoard.board[i][j][k][l]);
+        //                     tiles[i][j][k][l].setStyle("-fx-text-fill: black;");
+        //                 }
+        //                 // tiles[i][j][k][l].setEditable(false);
+        //                 // tiles[i][j][k][l].setMouseTransparent(true);
+        //             }
+        //         }
+        //     }
+        // }
+
+        while (!lBoard.observableState.isEmpty()) {
+            int[] step = lBoard.observableState.pollFirst();    // Ordered tuple having all information regarding step that we took
+            int value = step[0];    int i, j, k, l;
+            i=step[1];  j=step[2];  k=step[3];  l=step[4];
+
+            PauseTransition p = new PauseTransition( Duration.millis(5) );
+            p.setOnFinished( e -> {
+                MainScene.Tile t = tiles[i][j][k][l];
+                t.setStyle("-fx-text-fill: black;");
+                t.setText(""+ ((value!=0) ? value : ""));   // value=0 in step means backtrack, else extension try
+            });
+            solveAnimation.getChildren().add(p);
+        }
+
+        solveAnimation.play();
+    }
+    // Animations
+    private SequentialTransition solveAnimation = new SequentialTransition();
+    
+    @FXML
     private void clear() throws IOException{    // New instances of scene,controller only when refreshing (closing->opening XOR clearing). Keep track of all information between instances
         prevHeight = root.getHeight();  prevWidth = root.getWidth();
         new MainScene(dim);
+    }
+
+    @FXML
+    private void openScanner() throws IOException {
+        // App.setRoot("scanner");
+        stage.setScene(new Scene(FXMLLoader.load(getClass().getResource("fxml/scanner.fxml")), prevWidth, prevHeight));
     }
 
     
@@ -257,60 +317,4 @@ public class MainController {       // Loose coupling between UI(client) and log
         tiles[i][j][k][l].requestFocus();
     }
     
-
-    @FXML
-    private void solve() {
-        if (root.isLocked)
-            return;  
-        root.isLocked=true;
-
-        for (int i=0; i<dim; i++)
-            for (int j=0; j<dim; j++)
-                for (int k=0; k<dim; k++)
-                    for (int l=0; l<dim; l++)
-                        tiles[i][j][k][l].setEditable(false);   // Can't be edited by user no more
-
-        // Thread logicThread = new Thread(new Runnable() {
-        //     public void run() {
-        //         lBoard.solve();
-        //     }
-        // });
-        // logicThread.start();
-        lBoard.solve();
-
-        // for (int i=0; i<dim; i++) {
-        //     for (int j=0; j<dim; j++) {
-        //         for (int k=0; k<dim; k++){
-        //             for (int l=0; l<dim; l++) {
-        //                 if (tiles[i][j][k][l].getText()=="") {
-        //                     tiles[i][j][k][l].setText(""+lBoard.board[i][j][k][l]);
-        //                     tiles[i][j][k][l].setStyle("-fx-text-fill: black;");
-        //                 }
-        //                 // tiles[i][j][k][l].setEditable(false);
-        //                 // tiles[i][j][k][l].setMouseTransparent(true);
-        //             }
-        //         }
-        //     }
-        // }
-
-        while (!lBoard.observableState.isEmpty()) {
-            int[] step = lBoard.observableState.pollFirst();    // Ordered tuple having all information regarding step that we took
-            int value = step[0];    int i, j, k, l;
-            i=step[1];  j=step[2];  k=step[3];  l=step[4];
-
-            PauseTransition p = new PauseTransition( Duration.millis(5) );
-            p.setOnFinished( e -> {
-                MainScene.Tile t = tiles[i][j][k][l];
-                t.setStyle("-fx-text-fill: black;");
-                t.setText(""+ ((value!=0) ? value : ""));   // value=0 in step means backtrack, else extension try
-            });
-            solveAnimation.getChildren().add(p);
-        }
-
-        solveAnimation.play();
-    }
-
-    // Animations
-
-    private SequentialTransition solveAnimation = new SequentialTransition();
 }

@@ -253,3 +253,7 @@ tmp/
 
 # JNI headers
 jni/
+
+# Any captured imgs
+*.png
+*.jpg

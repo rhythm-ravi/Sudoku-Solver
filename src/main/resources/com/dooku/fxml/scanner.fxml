@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.dooku.ScannerController"
+            prefWidth="900" prefHeight="650">
+
+    <center>
+        <StackPane fx:id="cameraLayer">
+            <ImageView fx:id="cameraView"
+                       preserveRatio="true"
+                       fitWidth="900"
+                       fitHeight="650"/>
+            <Pane fx:id="overlayPane" mouseTransparent="true"/>
+        </StackPane>
+    </center>
+
+    <top>
+        <HBox alignment="CENTER" spacing="15">
+            <Label fx:id="statusMessage" text="Initializing camera..."/>
+        </HBox>
+    </top>
+
+    <bottom>
+        <HBox alignment="CENTER" spacing="20">  
+            <Button text="Back" onAction="#goBack"/>
+            <Button text="Snap" onAction="#takeSnapshot"/>
+            <!-- <Button text="Auto Detect: OFF" fx:id="autoButton" onAction="#toggleAuto"/> -->
+        </HBox>
+    </bottom>
+</BorderPane>
+
+<!-- <HBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      alignment="CENTER"
+      spacing="15">
+    <padding>
+        <Insets top="10" right="10" bottom="10" left="10"/>
+    </padding>
+    <Label text="Test Label"/>
+</HBox> -->
