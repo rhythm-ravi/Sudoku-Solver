@@ -21,8 +21,8 @@ import javafx.stage.*;
 /**
  * JavaFX App
  */
-public class App extends Application {          // Corresponds the actual javafx application
 
+public class App extends Application {          // Corresponds the actual javafx application
     private static Rectangle2D vScreen = Screen.getPrimary().getVisualBounds();
     static double screenWidth = vScreen.getWidth();
     static double screenHeight = vScreen.getHeight();       //******    TEST CODE   *************/

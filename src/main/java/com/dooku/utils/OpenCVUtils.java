@@ -1,4 +1,4 @@
-package com.dooku;
+package com.dooku.utils;
 
 import javafx.scene.image.Image;
 import javafx.scene.image.PixelFormat;
