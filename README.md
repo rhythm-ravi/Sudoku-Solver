@@ -292,37 +292,7 @@ If you see "Failed to load ONNX model":
 
 ---
 
-## 🛣️ Roadmap
 
-### Completed ✅
-- [x] Core Sudoku solving algorithm
-- [x] JavaFX UI with multiple scenes
-- [x] OpenCV integration for vision
-- [x] Real-time grid detection
-- [x] ONNX model integration
-- [x] Image upload functionality
-- [x] Modern UI redesign
-- [x] Settings persistence
-- [x] Multi-frame consensus verification
-- [x] Configurable grid sizes (4×4 to 16×16)
-
-### In Progress 🚧
-- [ ] Real-time camera overlay (PR in progress)
-- [ ] Model accuracy improvements (training on more diverse data)
-- [ ] Performance optimizations for Board.java solver
-
-### Planned 🎯
-- [ ] Improved solver algorithm (Dancing Links / Algorithm X)
-- [ ] Puzzle difficulty rating
-- [ ] Hint system for manual solving
-- [ ] Save/load puzzle feature
-- [ ] Printable puzzle generator
-- [ ] Multi-language support
-- [ ] Dark/light theme toggle
-- [ ] Sound effects and haptic feedback
-- [ ] Mobile app (Android/iOS) using same vision pipeline
-
----
 
 ## 🤝 Contributing
 
